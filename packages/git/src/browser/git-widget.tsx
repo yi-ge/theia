@@ -17,7 +17,7 @@
 import { injectable, inject, postConstruct } from 'inversify';
 import URI from '@theia/core/lib/common/uri';
 import { ResourceProvider, CommandService, MenuPath } from '@theia/core';
-import { ContextMenuRenderer, LabelProvider, DiffUris, StatefulWidget, Message } from '@theia/core/lib/browser';
+import { ContextMenuRenderer, LabelProvider, DiffUris, StatefulWidget, Message, SELECTED_CLASS } from '@theia/core/lib/browser';
 import { EditorManager, EditorWidget, EditorOpenerOptions } from '@theia/editor/lib/browser';
 import { WorkspaceService, WorkspaceCommands } from '@theia/workspace/lib/browser';
 import { Git, GitFileChange, GitFileStatus, Repository, WorkingDirectoryStatus, CommitWithChanges } from '../common';
@@ -26,9 +26,9 @@ import { GIT_RESOURCE_SCHEME } from './git-resource';
 import { GitRepositoryProvider } from './git-repository-provider';
 import { GitCommitMessageValidator } from './git-commit-message-validator';
 import { GitAvatarService } from './history/git-avatar-service';
-import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import * as React from 'react';
 import { GitErrorHandler } from './git-error-handler';
+import { GitDiffWidget } from './diff/git-diff-widget';
 
 export interface GitFileChangeNode extends GitFileChange {
     readonly icon: string;
@@ -46,7 +46,7 @@ export namespace GitFileChangeNode {
 }
 
 @injectable()
-export class GitWidget extends ReactWidget implements StatefulWidget {
+export class GitWidget extends GitDiffWidget implements StatefulWidget {
 
     private static MESSAGE_BOX_MIN_HEIGHT = 25;
 
@@ -67,6 +67,8 @@ export class GitWidget extends ReactWidget implements StatefulWidget {
 
     @inject(GitErrorHandler)
     protected readonly gitErrorHandler: GitErrorHandler;
+
+    protected readonly selectChange = (change: GitFileChangeNode) => this.selectNode(change);
 
     constructor(
         @inject(Git) protected readonly git: Git,
@@ -94,6 +96,7 @@ export class GitWidget extends ReactWidget implements StatefulWidget {
             this.initialize(repository)
         ));
         this.initialize(this.repositoryProvider.selectedRepository);
+        this.gitNodes = [];
         this.update();
     }
 
@@ -230,6 +233,7 @@ export class GitWidget extends ReactWidget implements StatefulWidget {
         this.stagedChanges = stagedChanges.sort(sort);
         this.unstagedChanges = unstagedChanges.sort(sort);
         this.mergeChanges = mergeChanges.sort(sort);
+        this.gitNodes = [...this.mergeChanges, ...this.stagedChanges, ...this.unstagedChanges];
         this.update();
     }
 
@@ -483,65 +487,26 @@ export class GitWidget extends ReactWidget implements StatefulWidget {
         }
     }
 
-    protected renderGitItemButtons(repository: Repository, change: GitFileChange): React.ReactNode {
-        return <div className='buttons'>
-            {
-                change.staged ?
-                    <a className='toolbar-button' title='Unstage Changes' onClick={() => this.unstage(repository, change)}>
-                        <i className='fa fa-minus' />
-                    </a> :
-                    <React.Fragment>
-                        <a className='toolbar-button' title='Discard Changes' onClick={() => this.discard(repository, change)}>
-                            <i className='fa fa-undo' />
-                        </a>
-                        <a className='toolbar-button' title='Stage Changes' onClick={() => this.stage(repository, change)}>
-                            <i className='fa fa-plus' />
-                        </a>
-                    </React.Fragment>
-            }
-        </div>;
-    }
-
-    protected renderGitItem(repository: Repository | undefined, change: GitFileChangeNode): React.ReactNode {
+    protected renderGitItem(change: GitFileChangeNode, repository?: Repository): React.ReactNode {
         if (!repository) {
             return '';
         }
-        return <div className='gitItem noselect' key={change.uri + change.status}>
-            <div className='noWrapInfo' onClick={() => this.openChange(change)}>
-                <span className={change.icon + ' file-icon'}></span>
-                <span className='name'>{change.label + ' '}</span>
-                <span className='path'>{change.description}</span>
-            </div>
-            <div className='itemButtonsContainer'>
-                <div className='buttons'>
-                    {
-                        change.staged ?
-                            <a className='toolbar-button' title='Unstage Changes' onClick={() => this.unstage(repository, change)}>
-                                <i className='fa fa-minus' />
-                            </a> :
-                            <React.Fragment>
-                                <a className='toolbar-button' title='Discard Changes' onClick={() => this.discard(repository, change)}>
-                                    <i className='fa fa-undo' />
-                                </a>
-                                <a className='toolbar-button' title='Stage Changes' onClick={() => this.stage(repository, change)}>
-                                    <i className='fa fa-plus' />
-                                </a>
-                            </React.Fragment>
-                    }
-                </div>
-                <div title={GitFileStatus.toString(change.status, change.staged)}
-                    className={`status ${change.staged ? 'staged ' : ''} ${GitFileStatus[change.status].toLowerCase()}`}>
-                    {GitFileStatus.toAbbreviation(change.status, change.staged)}
-                </div>
-            </div>
-        </div>;
+        return <GitItem key={change.uri + change.status}
+            repository={repository}
+            change={change}
+            openChange={this.openChangeProp}
+            discard={this.discard}
+            stage={this.stage}
+            unstage={this.unstage}
+            selectChange={this.selectChange}
+        />;
     }
 
     protected renderMergeChanges(repository: Repository | undefined): React.ReactNode | undefined {
         if (this.mergeChanges.length > 0) {
             return <div id='mergeChanges' className='changesContainer'>
                 <div className='theia-header'>Merge Changes</div>
-                {this.mergeChanges.map(change => this.renderGitItem(repository, change))}
+                {this.mergeChanges.map(change => this.renderGitItem(change, repository))}
             </div>;
         } else {
             return undefined;
@@ -554,7 +519,7 @@ export class GitWidget extends ReactWidget implements StatefulWidget {
                 <div className='theia-header'>
                     Staged Changes
             </div>
-                {this.stagedChanges.map(change => this.renderGitItem(repository, change))}
+                {this.stagedChanges.map(change => this.renderGitItem(change, repository))}
             </div>;
         } else {
             return undefined;
@@ -565,7 +530,7 @@ export class GitWidget extends ReactWidget implements StatefulWidget {
         if (this.unstagedChanges.length > 0) {
             return <div id='unstagedChanges' className='changesContainer'>
                 <div className='theia-header'>Changed</div>
-                {this.unstagedChanges.map(change => this.renderGitItem(repository, change))}
+                {this.unstagedChanges.map(change => this.renderGitItem(change, repository))}
             </div>;
         }
 
@@ -585,12 +550,13 @@ export class GitWidget extends ReactWidget implements StatefulWidget {
         return this.stagedChanges.find(c => c.uri.toString() === stringUri);
     }
 
+    openChangeProp = async (change: GitFileChange, options?: EditorOpenerOptions) => this.openChange(change, options);
     async openChange(change: GitFileChange, options?: EditorOpenerOptions): Promise<EditorWidget | undefined> {
-        const changeUri = this.createChangeUri(change);
+        const changeUri = this.getUriToOpen(change);
         return this.editorManager.open(changeUri, options);
     }
 
-    protected createChangeUri(change: GitFileChange): URI {
+    protected getUriToOpen(change: GitFileChange): URI {
         const changeUri: URI = new URI(change.uri);
         if (change.status !== GitFileStatus.New) {
             if (change.staged) {
@@ -659,4 +625,60 @@ export namespace GitWidget {
         export const NO_SELECT = 'no-select';
     }
 
+}
+
+export namespace GitItem {
+    export interface Props {
+        change: GitFileChangeNode
+        repository: Repository
+        openChange: (change: GitFileChange, options?: EditorOpenerOptions) => Promise<EditorWidget | undefined>
+        selectChange: (change: GitFileChange) => void
+        unstage: (repository: Repository, change: GitFileChange) => void
+        stage: (repository: Repository, change: GitFileChange) => void
+        discard: (repository: Repository, change: GitFileChange) => void
+    }
+}
+
+export class GitItem extends React.Component<GitItem.Props> {
+
+    protected readonly openChange = () => this.props.openChange(this.props.change, { mode: 'reveal' });
+    protected readonly selectChange = () => this.props.selectChange(this.props.change);
+    protected readonly doGitAction = (action: 'stage' | 'unstage' | 'discard') => this.props[action](this.props.repository, this.props.change);
+
+    render() {
+        const { change } = this.props;
+        return <div className={`gitItem ${GitWidget.Styles.NO_SELECT}${change.selected ? ' ' + SELECTED_CLASS : ''}`}>
+            <div className='noWrapInfo' onDoubleClick={this.openChange} onClick={this.selectChange}>
+                <span className={change.icon + ' file-icon'}></span>
+                <span className='name'>{change.label + ' '}</span>
+                <span className='path'>{change.description}</span>
+            </div>
+            <div className='itemButtonsContainer'>
+                {this.renderGitItemButtons()}
+                <div title={GitFileStatus.toString(change.status, change.staged)}
+                    className={`status ${change.staged ? 'staged ' : ''} ${GitFileStatus[change.status].toLowerCase()}`}>
+                    {GitFileStatus.toAbbreviation(change.status, change.staged)}
+                </div>
+            </div>
+        </div>;
+    }
+
+    protected renderGitItemButtons(): React.ReactNode {
+        return <div className='buttons'>
+            {
+                this.props.change.staged ?
+                    <a className='toolbar-button' title='Unstage Changes' onClick={() => this.doGitAction('unstage')}>
+                        <i className='fa fa-minus' />
+                    </a> :
+                    <React.Fragment>
+                        <a className='toolbar-button' title='Discard Changes' onClick={() => this.doGitAction('discard')}>
+                            <i className='fa fa-undo' />
+                        </a>
+                        <a className='toolbar-button' title='Stage Changes' onClick={() => this.doGitAction('stage')}>
+                            <i className='fa fa-plus' />
+                        </a>
+                    </React.Fragment>
+            }
+        </div>;
+    }
 }

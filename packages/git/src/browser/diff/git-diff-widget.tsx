@@ -18,7 +18,7 @@ import { inject, injectable, postConstruct } from 'inversify';
 import URI from '@theia/core/lib/common/uri';
 import { StatefulWidget, SELECTED_CLASS, DiffUris } from '@theia/core/lib/browser';
 import { EditorManager, EditorOpenerOptions, EditorWidget, DiffNavigatorProvider, DiffNavigator } from '@theia/editor/lib/browser';
-import { GitFileChange, GitFileStatus, Git, WorkingDirectoryStatus } from '../../common';
+import { GitFileChange, GitFileStatus, Git, WorkingDirectoryStatus, Repository } from '../../common';
 import { GitWatcher } from '../../common';
 import { GIT_RESOURCE_SCHEME } from '../git-resource';
 import { GitNavigableListWidget } from '../git-navigable-list-widget';
@@ -212,7 +212,7 @@ export class GitDiffWidget extends GitNavigableListWidget<GitFileChangeNode> imp
         return <div className='listContainer' id={this.scrollContainer}>{...files}</div>;
     }
 
-    protected renderGitItem(change: GitFileChangeNode): React.ReactNode {
+    protected renderGitItem(change: GitFileChangeNode, repository?: Repository): React.ReactNode {
         return <div key={change.uri.toString()} className={`gitItem noselect${change.selected ? ' ' + SELECTED_CLASS : ''}`}>
             <div
                 title={change.caption}
