@@ -44,7 +44,7 @@ For Windows instructions [click here](#building-on-windows).
      - [Root privileges errors](#root-privileges-errors)
 
 ## Prerequisites
- - Node.js v8.0 or higher
+ - Node.js v8.0+ or higher. Node.js 10 is **not** supported yet due to an issue in [`nsfw`](https://github.com/theia-ide/theia/issues/2009). Preferably, use version `8.11.4`, that is the currently [active LTS](https://github.com/nodejs/Release).
  - [Yarn package manager](https://yarnpkg.com/en/docs/install) v1.7.0
  - git (If you would like to use the Git-extension too, you will need to have git version 2.11.0 or higher.)
 
