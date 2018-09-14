@@ -180,15 +180,15 @@ export class MonacoOutlineContribution implements FrontendApplicationContributio
             (sameEndLine && endColSmallerOrEqual || endLineSmaller)) || !rangeBased);
     }
 
-    protected getRangeFromSymbolInformation(symbolInformation: DocumentSymbol): Range {
+    protected getRangeFromSymbolInformation(documentSymbol: DocumentSymbol): Range {
         return {
             end: {
-                character: symbolInformation.range.endColumn - 1,
-                line: symbolInformation.range.endLineNumber - 1
+                character: documentSymbol.selectionRange.endColumn - 1,
+                line: documentSymbol.selectionRange.endLineNumber - 1
             },
             start: {
-                character: symbolInformation.range.startColumn - 1,
-                line: symbolInformation.range.startLineNumber - 1
+                character: documentSymbol.selectionRange.startColumn - 1,
+                line: documentSymbol.selectionRange.startLineNumber - 1
             }
         };
     }
