@@ -32,7 +32,7 @@ export class ApplicationServerImpl implements ApplicationServer {
 
     getApplicationInfo(): Promise<ApplicationInfo | undefined> {
         const pck = this.applicationPackage.pck.pck;
-        if (pck.name && pck.version) {
+        if (pck && pck.name && pck.version) {
             const name = pck.name;
             const version = pck.version;
 
